@@ -16,8 +16,9 @@ Including another URLconf
 """
 from django.contrib import admin
 from django.urls import path, include
-
+from .views import AuthTokenAPIView
 urlpatterns = [
     path('admin/', admin.site.urls),
-    path('api/members', include('Members.urls')),
+    path('authenticate/', AuthTokenAPIView.as_view(), name='authenticate'),
+    path('api/members/', include('Members.urls')),
 ]
