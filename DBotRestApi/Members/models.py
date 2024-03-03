@@ -9,6 +9,11 @@ class Role(models.Model):
     name = models.CharField(max_length=50, null=False)
 
 
+class GameRole(Role):
+    game_assigned = models.CharField(max_length=50, null=False)
+    game_detection_string = models.CharField(max_length=255, null=False)
+
+
 class Member(models.Model):
     name = models.CharField(max_length=50, null=False)
     points = models.IntegerField(default=0, null=False)

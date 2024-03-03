@@ -5,8 +5,8 @@ from discord.ext import commands
 from dotenv import load_dotenv
 import os
 import queue
-import requests
-
+from utils.models.roles import GameRole
+from rest_client import RestClient
 
 load_dotenv()
 
@@ -16,23 +16,16 @@ PREFIX = os.getenv("PREFIX") + " "
 
 class FilipRBot(commands.Bot):
     audio_queue = queue.Queue()
+    game_roles = []
 
     def __init__(self):
         super().__init__(command_prefix=PREFIX, intents=discord.Intents(voice_states=True, guilds=True,
                                                                         guild_messages=True, message_content=True))
-
+        self.restclient = RestClient()
+        self.load_game_roles()
         self.add_commands()
 
     async def on_ready(self):
-        url = 'http://127.0.0.1:8000/authenticate/'
-        credentials = {
-            'username' : "apiuser",
-            'password' : 'haslo23'
-        }
-        response = requests.post(url, data=credentials)
-        if response.status_code == 200:
-            token = response.json()['token']
-            print(token)
         print(f"Logged in as {self.user}")
 
     async def play_next(self, ctx):
@@ -87,6 +80,14 @@ class FilipRBot(commands.Bot):
         async def add_to_queue(ctx, item):
             self.audio_queue.put(discord.FFmpegPCMAudio(item))
             await ctx.send(f"DODALEM TO {item} DO KOLEJKI")
+
+        @self.command(name="wolaj")
+        async def call_for_game(ctx, *args):
+            await ctx.send(f"{args}")
+
+    def load_game_roles(self):
+        for obj in self.restclient.get_game_roles():
+            self.game_roles.append(GameRole(**obj))
 
 
 def main():
