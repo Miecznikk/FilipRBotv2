@@ -57,7 +57,11 @@ class RestClient:
             raise ValueError("Something went wrong while putting data into the server")
 
     def get_time_ranking(self):
-        pass
+        response = requests.get(f"{self.url}api/members/minutes_spent/ranking/", headers={
+            "Authorization": f"Token {self.get_authenticate_token()}"
+        })
+        if response.status_code == 200:
+            return response.json()
 
 
 if __name__ == "__main__":

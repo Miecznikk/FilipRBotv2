@@ -9,5 +9,6 @@ urlpatterns = [
     path('roles/gameroles/', GameRolesListAPIView.as_view(), name='game-roles-list'),
     path('roles/gameroles/<str:game_detection_string>/', GameRoleGetAPIView.as_view(), name='game-role-get'),
     path('minutes_spent/<str:member_name>/<int:minutes_spent>/', SetNewTimeSpentAPIView.as_view(), name='set-new'
-                                                                                                        '-minutes')
+                                                                                                        '-minutes'),
+    path('minutes_spent/ranking/', GetTimeRankedMembersAPIView.as_view(), name='time-ranking')
 ]

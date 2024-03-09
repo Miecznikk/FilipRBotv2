@@ -8,6 +8,8 @@ from dotenv import load_dotenv
 import os
 import queue
 
+from utils.utils import get_member_nickname, convert_to_time
+from utils.models.Member import Member
 from utils.models.roles import GameRole
 from rest_client import RestClient
 import logging
@@ -42,6 +44,7 @@ class FilipRBot(commands.Bot):
     async def on_ready(self):
         self.logger.info(f"Logged in as {self.user}")
         self.check_members_on_voice_channels.start()
+        print(self.guilds[0].members)
 
     async def play_next(self, ctx):
         if self.audio_queue.empty():
@@ -102,15 +105,15 @@ class FilipRBot(commands.Bot):
             if rank == "ranking":
                 await ctx.send("JAKI TY KURWA RANKING CHCESZ ZJEBIE? CZASU CZY PUNKTOW")
                 try:
-                    response = await self.wait_for("message", timeout=10.0,
-                                                   check=lambda m: m.author == ctx.author and m.channel == ctx.channel)
+                    member_response = await self.wait_for("message", timeout=10.0,
+                                                          check=lambda
+                                                              m: m.author == ctx.author and m.channel == ctx.channel)
                 except asyncio.TimeoutError:
                     await ctx.send("DOBRA NIE WIEM KURWA ILE TY SIE ZASTANAWIAC BEDZIESZ")
                     return
-
-                if response.content.lower() == "czasu":
-                    pass
-                elif response.content.lower() == "punktow":
+                if member_response.content.lower() == "czasu":
+                    await ctx.send(self.get_time_ranked_members())
+                elif member_response.content.lower() == "punktow":
                     await ctx.send("JESZCZE NIE LICZE PUNKTOW BO MNIE DOMCIO NIE NAUCZYL")
 
     @tasks.loop(minutes=1)
@@ -133,6 +136,15 @@ class FilipRBot(commands.Bot):
                         del self.active_members[member]
                     except ValueError:
                         self.logger.info(f"Couldn't send request for member {member.name}")
+
+    def get_time_ranked_members(self):
+        ranking_message = "OTO NAJWIEKSZE NOLIFY NA TYM LEWACKIM DISCORDZIE: \n"
+        members = [Member(**data) for data in self.restclient.get_time_ranking()]
+        for i, member in enumerate(members):
+            dc_member = discord.utils.get(self.guilds[0].members, name=member.name)
+            if dc_member:
+                ranking_message += f"{i + 1}. {get_member_nickname(dc_member)} - {convert_to_time(member.minutes_spent)}\n"
+        return ranking_message
 
 
 def main():
