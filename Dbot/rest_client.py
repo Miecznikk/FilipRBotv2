@@ -32,14 +32,14 @@ class RestClient:
             return response.json()
 
     def get_game_roles(self):
-        response = requests.get(self.url + "api/members/roles/gameroles", headers={
+        response = requests.get(self.url + "api/members/roles/gameroles/", headers={
             "Authorization": f"Token {self.get_authenticate_token()}"
         })
         if response.status_code == 200:
             return response.json()
 
     def get_game_role(self, game_role_detection):
-        response = requests.get(self.url + "api/members/roles/gameroles/" + game_role_detection, headers={
+        response = requests.get(self.url + "api/members/roles/gameroles/" + game_role_detection + "/", headers={
             "Authorization": f"Token {self.get_authenticate_token()}"
         })
         if response.status_code == 200:
@@ -47,6 +47,20 @@ class RestClient:
         else:
             raise ValueError("Value not found")
 
+    def set_new_minutes_spent(self, member_name, minutes_spent):
+        response = requests.post(f"{self.url}api/members/minutes_spent/{member_name}/{minutes_spent}/", headers={
+            "Authorization": f"Token {self.get_authenticate_token()}"
+        })
+        if response.status_code == 200:
+            return response.json()
+        else:
+            raise ValueError("Something went wrong while putting data into the server")
+
+    def get_time_ranking(self):
+        pass
+
+
 if __name__ == "__main__":
     rc = RestClient()
-    rc.get_discord_members()
+    rc.set_new_minutes_spent("testerbotow2137", 20)
+

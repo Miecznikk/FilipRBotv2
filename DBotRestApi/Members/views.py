@@ -1,5 +1,6 @@
 from django.http import Http404
 from django.shortcuts import get_object_or_404
+from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -34,4 +35,15 @@ class GameRoleGetAPIView(APIView):
             raise Http404("Multiple objects found")
         serializer = GameRoleSerializer(game_role, many=True)
         return Response(serializer.data)
+
+
+class SetNewTimeSpentAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, member_name, minutes_spent):
+        member = get_object_or_404(Member, name=member_name)
+        member.minutes_spent = member.minutes_spent + minutes_spent
+        member.save()
+        return Response({"message": "OK"}, status=status.HTTP_200_OK)
+
 # Create your views here.
