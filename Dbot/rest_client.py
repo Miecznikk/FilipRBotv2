@@ -38,6 +38,14 @@ class RestClient:
         if response.status_code == 200:
             return response.json()
 
+    def get_game_role(self, game_role_detection):
+        response = requests.get(self.url + "api/members/roles/gameroles/" + game_role_detection, headers={
+            "Authorization": f"Token {self.get_authenticate_token()}"
+        })
+        if response.status_code == 200:
+            return response.json()
+        else:
+            raise ValueError("Value not found")
 
 if __name__ == "__main__":
     rc = RestClient()

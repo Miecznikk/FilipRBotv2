@@ -5,13 +5,16 @@ from discord.ext import commands
 from dotenv import load_dotenv
 import os
 import queue
-from utils.models.roles import GameRole
 from rest_client import RestClient
+import logging
 
 load_dotenv()
 
 TOKEN = os.getenv("TOKEN")
 PREFIX = os.getenv("PREFIX") + " "
+
+logger = logging.getLogger("discord")
+logger.setLevel(logging.INFO)
 
 
 class FilipRBot(commands.Bot):
@@ -19,14 +22,23 @@ class FilipRBot(commands.Bot):
     game_roles = []
 
     def __init__(self):
-        super().__init__(command_prefix=PREFIX, intents=discord.Intents(voice_states=True, guilds=True,
+        super().__init__(command_prefix=PREFIX, intents=discord.Intents(members=True, voice_states=True, guilds=True,
                                                                         guild_messages=True, message_content=True))
+        self.logger = logging.getLogger(self.__class__.__name__)
+        self.logger.setLevel(logging.INFO)
+
+        console_handler = logging.StreamHandler()
+        console_handler.setLevel(logging.INFO)
+        formatter = logging.Formatter("[%(asctime)s] [%(levelname)s] FilipRBot: %(message)s", "%Y-%m-%d %H:%M:%S")
+        console_handler.setFormatter(formatter)
+
+        self.logger.addHandler(console_handler)
+
         self.restclient = RestClient()
-        self.load_game_roles()
         self.add_commands()
 
     async def on_ready(self):
-        print(f"Logged in as {self.user}")
+        self.logger.info(f"Logged in as {self.user}")
 
     async def play_next(self, ctx):
         if self.audio_queue.empty():
@@ -83,11 +95,21 @@ class FilipRBot(commands.Bot):
 
         @self.command(name="wolaj")
         async def call_for_game(ctx, *args):
-            await ctx.send(f"{args}")
+            try:
+                game_role = self.restclient.get_game_role(args[-1])[0]
+                role = discord.utils.get(self.guilds[0].roles, name=game_role['name'])
+            except ValueError:
+                await ctx.send("NA CO KURWA?")
+                return
+            self.logger.info(f"Found following role: {game_role['name']}")
+            await ctx.send("DOBRA WOLAM ICH KURWA NA " + game_role['game_assigned'].upper())
 
-    def load_game_roles(self):
-        for obj in self.restclient.get_game_roles():
-            self.game_roles.append(GameRole(**obj))
+            for member in self.guilds[0].members:
+                if role in member.roles:
+                    if member.voice is None:
+                        self.logger.info(f"Sending message to {member.name}")
+                        await member.send("SIEMA KURWO CHODZ GRAC NA SPOCONE RECZNIKI W "
+                                          + game_role['game_assigned'].upper())
 
 
 def main():
