@@ -8,7 +8,7 @@ from dotenv import load_dotenv
 import os
 import queue
 
-from utils.utils import get_member_nickname, convert_to_time
+from utils.utils import get_member_nickname, convert_to_time, channel_check
 from utils.models.Member import Member
 from utils.models.roles import GameRole
 from rest_client import RestClient
@@ -18,6 +18,7 @@ load_dotenv()
 
 TOKEN = os.getenv("TOKEN")
 PREFIX = os.getenv("PREFIX") + " "
+CHANNEL_NAME = os.getenv("CHANNEL_NAME")
 
 
 class FilipRBot(commands.Bot):
@@ -44,7 +45,7 @@ class FilipRBot(commands.Bot):
     async def on_ready(self):
         self.logger.info(f"Logged in as {self.user}")
         self.check_members_on_voice_channels.start()
-        print(self.guilds[0].members)
+        print(CHANNEL_NAME)
 
     async def play_next(self, ctx):
         if self.audio_queue.empty():
@@ -55,6 +56,7 @@ class FilipRBot(commands.Bot):
                               after=lambda e: asyncio.run_coroutine_threadsafe(self.play_next(ctx), self.loop))
 
     def add_commands(self):
+        @channel_check(CHANNEL_NAME)
         @self.command(name="join")
         async def join(ctx):
             if ctx.author.voice is None or ctx.author.voice.channel is None:
@@ -67,6 +69,7 @@ class FilipRBot(commands.Bot):
             else:
                 await ctx.voice_client.move_to(vc)
 
+        @channel_check(CHANNEL_NAME)
         @self.command(name="play")
         async def play(ctx):
             if ctx.voice_client is None:
@@ -76,11 +79,13 @@ class FilipRBot(commands.Bot):
             if not ctx.voice_client.is_playing():
                 await self.play_next(ctx)
 
+        @channel_check(CHANNEL_NAME)
         @self.command(name="add")
         async def add_to_queue(ctx, item):
             self.audio_queue.put(discord.FFmpegPCMAudio(item))
             await ctx.send(f"DODALEM TO {item} DO KOLEJKI")
 
+        @channel_check(CHANNEL_NAME)
         @self.command(name="wolaj")
         async def call_for_game(ctx, *args):
             try:
@@ -99,6 +104,7 @@ class FilipRBot(commands.Bot):
                         await member.send("SIEMA KURWO CHODZ GRAC NA SPOCONE RECZNIKI W "
                                           + game_role.game_assigned.upper())
 
+        @channel_check(CHANNEL_NAME)
         @self.command(name="pokaz")
         async def show_rank(ctx, rank=None):
             self.logger.info(f"Executing show rank method")
@@ -115,6 +121,8 @@ class FilipRBot(commands.Bot):
                     await ctx.send(self.get_time_ranked_members())
                 elif member_response.content.lower() == "punktow":
                     await ctx.send("JESZCZE NIE LICZE PUNKTOW BO MNIE DOMCIO NIE NAUCZYL")
+                else:
+                    await ctx.send("NIE MA TKAIEGO RANKINGU DEBILU")
 
     @tasks.loop(minutes=1)
     async def check_members_on_voice_channels(self):
