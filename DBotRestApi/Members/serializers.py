@@ -5,7 +5,7 @@ from .models import Member, GameRole
 class MemberSerializer(serializers.ModelSerializer):
     class Meta:
         model = Member
-        fields = ['id', 'name', 'points', 'minutes_spent']
+        fields = ['id', 'name', 'points', 'minutes_spent', 'configurator']
 
 
 class GameRoleSerializer(serializers.ModelSerializer):

@@ -21,4 +21,5 @@ urlpatterns = [
     path('admin/', admin.site.urls),
     path('authenticate/', AuthTokenAPIView.as_view(), name='authenticate'),
     path('api/members/', include('Members.urls')),
+    path('api/utils/', include('Utils.urls'))
 ]
