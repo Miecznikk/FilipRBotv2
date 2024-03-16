@@ -46,8 +46,9 @@ class SetNewTimeSpentAPIView(APIView):
         member.save()
         return Response({"message": "OK"}, status=status.HTTP_200_OK)
 
+
 class GetTimeRankedMembersAPIView(APIView):
-    #permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated]
 
     def get(self, reqest):
         members = Member.objects.order_by('-minutes_spent')[:5]
