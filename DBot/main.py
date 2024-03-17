@@ -112,12 +112,6 @@ class FilipRBot(commands.Bot):
                 await ctx.send(random.choice(self.commands_config['show_rank']['types_response']),
                                view=RankingView(self.get_time_ranked_members_embed, None))
 
-        @check_in_call(self)
-        @channel_check(CHANNEL_NAME)
-        @self.command(name="jaka", aliases=['jak'])
-        async def check_weather(ctx, weather=None):
-            if weather == "pogoda":
-                await ctx.send("BARDZO LADNA POGODA")
 
         @channel_check(CHANNEL_NAME)
         @self.command(name="test")
@@ -129,7 +123,7 @@ class FilipRBot(commands.Bot):
 
             await ctx.send("hejka", view=MyView())
 
-    async def random_message(self, ctx):
+    async def default_message(self, ctx):
         if not self.julia_call:
             if random.randint(1, 100) <= int(os.getenv("JULIA_CALL_RATE")):
                 await ctx.send("JULIA DZWONI ZW")
@@ -140,7 +134,7 @@ class FilipRBot(commands.Bot):
 
     async def on_command_error(self, ctx, error):
         if isinstance(error, commands.CommandNotFound) and ctx.channel.name == CHANNEL_NAME:
-            await self.random_message(ctx)
+            await self.default_message(ctx)
         else:
             self.logger.info(f"Something went wrong: {error}")
 
@@ -180,7 +174,7 @@ class FilipRBot(commands.Bot):
             5: "5."
         }
         embed = discord.Embed(title=random.choice(self.commands_config['show_rank']['ranking_starting_string']['time']),
-                              color=discord.Color.yellow(),
+                              color=discord.Color.random(),
                               timestamp=datetime.datetime.now())
         members = [Member(**data) for data in self.restclient.get_time_ranking()]
         for i, member in enumerate(members):

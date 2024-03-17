@@ -19,6 +19,10 @@ class Member(models.Model):
     points = models.IntegerField(default=0, null=False)
     minutes_spent = models.IntegerField(default=0, null=False)
     configurator = models.BooleanField(default=False)
+    nicknames = models.CharField(max_length=250, null=False, default="")
+
+    def __str__(self):
+        return self.name
 
 
 @receiver(post_save, sender=User)
