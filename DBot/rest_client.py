@@ -74,6 +74,16 @@ class RestClient:
         else:
             raise ValueError("Failed to retrieve audio file, response code:" + str(response))
 
+    def get_default_message(self, user_name, message_content):
+        response = requests.get(f"{self.url}/api/messages/get/default_message/{user_name}/{message_content}",
+                                headers={"Authorization": f"Token {self.get_authenticate_token()}"})
+
+        if response.status_code == 200:
+            return response.json()
+        else:
+            raise ValueError("Something went wrong while retrieving default message" + str(response))
+
+
 if __name__ == "__main__":
     rc = RestClient()
-
+    print(rc.get_default_message("miecznikk", "daj dupy"))

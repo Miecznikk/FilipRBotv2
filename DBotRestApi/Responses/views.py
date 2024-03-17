@@ -1,16 +1,12 @@
 import random
 from itertools import chain
 
-from django.db.models import Q
-from django.shortcuts import render
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from Members.models import Member
 from .models import *
 
-
-# Create your views here.
 
 class GetDefaultMessageView(APIView):
     keywords_dict = {
@@ -19,9 +15,11 @@ class GetDefaultMessageView(APIView):
         PbRelatedMessage: ['pb', 'polibud', 'studia'],
         AlcoholRelatedMessage: ['piwo', 'piwko', 'wódka', 'wodka', 'wodke', 'wódke', 'alkohol'],
         GrubassyRelatedMessage: ['grubass'],
-        GlucoseRelatedMessage: ['cukier', 'cukr', 'dzik', 'dziczek'],
+        GlucoseRelatedMessage: ['cukier', 'cukr', 'dzik', 'dziczek', 'witamin'],
         GreetingsRelatedMessage: ['siema', 'hej', 'czesc', 'czolem']
     }
+
+    permission_classes = [IsAuthenticated]
 
     def get(self, request, user_name, message_content):
         possible_tables = [key for key, value in self.keywords_dict.items() for val in value if val in message_content]

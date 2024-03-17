@@ -131,6 +131,8 @@ class FilipRBot(commands.Bot):
                 await asyncio.sleep(int(os.getenv("JULIA_CALL_TIMEOUT")))
                 self.julia_call = False
                 await ctx.send("DOBRA JUZ JESTEM")
+            else:
+                await ctx.send(self.restclient.get_default_message(ctx.author.name, ctx.message.content))
 
     async def on_command_error(self, ctx, error):
         if isinstance(error, commands.CommandNotFound) and ctx.channel.name == CHANNEL_NAME:
