@@ -2,7 +2,7 @@
 *.jpg
 *.env
 *.mp3
-
+commands_config.yaml
 # Django #
 *.log
 *.pot

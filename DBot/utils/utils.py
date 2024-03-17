@@ -11,7 +11,7 @@ def convert_to_time(minutes):
     hours = minutes // 60
     remaining_minutes = minutes % 60
 
-    return f"{hours} h, {remaining_minutes} min"
+    return f"{hours}h, {remaining_minutes}min"
 
 
 def channel_check(channel_name):
@@ -21,3 +21,8 @@ def channel_check(channel_name):
     return check(predicate)
 
 
+def check_in_call(bot_instance):
+    def predicate(ctx, *args):
+        return not bot_instance.julia_call
+
+    return check(predicate)

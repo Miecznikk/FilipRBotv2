@@ -1,15 +1,15 @@
 import asyncio
+import datetime
 import random
 
 import discord
+import yaml
 from discord.ext import commands, tasks
-from discord.ext.commands import Context, errors
-from discord.ext.commands._types import BotT
 from dotenv import load_dotenv
 import os
 import queue
 import argparse
-from utils.utils import get_member_nickname, convert_to_time, channel_check
+from utils.utils import get_member_nickname, convert_to_time, channel_check, check_in_call
 from utils.models.Member import Member
 from utils.models.roles import GameRole
 from rest_client import RestClient
@@ -25,6 +25,8 @@ CHANNEL_NAME = os.getenv("CHANNEL_NAME")
 class FilipRBot(commands.Bot):
     audio_queue = queue.Queue()
     configurators = None
+    commands_config = None
+    julia_call = False
 
     def __init__(self, config):
         super().__init__(command_prefix=PREFIX, intents=discord.Intents(members=True, voice_states=True, guilds=True,
@@ -33,7 +35,6 @@ class FilipRBot(commands.Bot):
         self.config = config
         self.logger = logging.getLogger(self.__class__.__name__)
         self.logger.setLevel(logging.INFO)
-
         self.active_members = {}
 
         console_handler = logging.StreamHandler()
@@ -44,6 +45,7 @@ class FilipRBot(commands.Bot):
         self.logger.addHandler(console_handler)
 
         self.restclient = RestClient()
+        self.load_commands_config()
         self.add_commands()
 
     async def on_ready(self):
@@ -54,52 +56,79 @@ class FilipRBot(commands.Bot):
             self.decide_and_join_channel.start(int(os.getenv("JOIN_RATE")))
 
     def add_commands(self):
+        @check_in_call(self)
         @channel_check(CHANNEL_NAME)
-        @self.command(name="wolaj")
+        @self.command(name=self.commands_config['call_for_game']['command_name'])
         async def call_for_game(ctx, *args):
+            if len(args) < 2:
+                return
             try:
                 game_role = GameRole(**self.restclient.get_game_role(args[-1])[0])
                 role = discord.utils.get(self.guilds[0].roles, name=game_role.name)
             except ValueError:
-                await ctx.send("NA CO KURWA?")
+                await ctx.send(random.choice(self.commands_config['call_for_game']['value_error']))
                 return
             self.logger.info(f"Found following role: {game_role.name}")
-            await ctx.send("DOBRA WOLAM ICH KURWA NA " + game_role.game_assigned.upper())
+            await ctx.send(
+                f"{random.choice(self.commands_config['call_for_game']['calling'])} {game_role.game_assigned.upper()}")
 
             for member in self.guilds[0].members:
                 if role in member.roles:
                     if member.voice is None:
                         self.logger.info(f"Sending message to {member.name}")
-                        await member.send("SIEMA KURWO CHODZ GRAC NA SPOCONE RECZNIKI W "
-                                          + game_role.game_assigned.upper())
+                        await member.send(
+                            f"{random.choice(self.commands_config['call_for_game']['message'])} {game_role.game_assigned.upper()}")
 
+        @check_in_call(self)
         @channel_check(CHANNEL_NAME)
-        @self.command(name="pokaz", aliases=['poka'])
+        @self.command(name=self.commands_config['show_rank']['command_name'],
+                      aliases=self.commands_config['show_rank']['aliases'])
         async def show_rank(ctx, rank=None):
-            if rank == "ranking":
-                await ctx.send("JAKI TY KURWA RANKING CHCESZ ZJEBIE? CZASU CZY PUNKTOW")
-                try:
-                    member_response = await self.wait_for("message", timeout=10.0,
-                                                          check=lambda
-                                                              m: m.author == ctx.author and m.channel == ctx.channel)
-                except asyncio.TimeoutError:
-                    await ctx.send("DOBRA NIE WIEM KURWA ILE TY SIE ZASTANAWIAC BEDZIESZ")
-                    return
-                if member_response.content.lower() == "czasu":
-                    await ctx.send(self.get_time_ranked_members_string())
-                elif member_response.content.lower() == "punktow":
-                    await ctx.send("JESZCZE NIE LICZE PUNKTOW BO MNIE DOMCIO NIE NAUCZYL")
-                else:
-                    await ctx.send("NIE MA TKAIEGO RANKINGU DEBILU")
+            if rank == self.commands_config['show_rank']['argument_required']:
+                class RankingView(discord.ui.View):
+                    def __init__(self, time_method, points_method):
+                        super().__init__()
+                        self.time_method = time_method
+                        self.points_method = points_method
 
+                    @discord.ui.button(label="Czasu", custom_id="time_button", style=discord.ButtonStyle.secondary, emoji="⏱")
+                    async def time_callback(self, interaction, button):
+                        if ctx.author.id == interaction.user.id:
+                            await interaction.response.send_message(embed=self.time_method())
+
+                    @discord.ui.button(label="Punktow", custom_id="points_button", style=discord.ButtonStyle.secondary, emoji="💯")
+                    async def points_callback(self, interaction, button):
+                        if ctx.author.id == interaction.user.id:
+                            await interaction.response.send_message(embed=self.points_method())
+
+                await ctx.send(random.choice(self.commands_config['show_rank']['types_response']),
+                               view=RankingView(self.get_time_ranked_members_embed, None))
+
+        @check_in_call(self)
         @channel_check(CHANNEL_NAME)
         @self.command(name="jaka", aliases=['jak'])
         async def check_weather(ctx, weather=None):
             if weather == "pogoda":
                 await ctx.send("BARDZO LADNA POGODA")
 
+        @channel_check(CHANNEL_NAME)
+        @self.command(name="test")
+        async def test(ctx):
+            class MyView(discord.ui.View):
+                @discord.ui.button(label="CLICK ME!", style=discord.ButtonStyle.primary)
+                async def button_callback(self, interaction, button):
+                    await interaction.response.send_message("You clicked me")
+
+            await ctx.send("hejka", view=MyView())
+
     async def random_message(self, ctx):
-        await ctx.send("random")
+        if not self.julia_call:
+            if random.randint(1, 100) <= int(os.getenv("JULIA_CALL_RATE")):
+                await ctx.send("JULIA DZWONI ZW")
+                self.julia_call = True
+                await asyncio.sleep(int(os.getenv("JULIA_CALL_TIMEOUT")))
+                self.julia_call = False
+                await ctx.send("DOBRA JUZ JESTEM")
 
     async def on_command_error(self, ctx, error):
         if isinstance(error, commands.CommandNotFound) and ctx.channel.name == CHANNEL_NAME:
@@ -148,14 +177,25 @@ class FilipRBot(commands.Bot):
             vc = await random_channel.connect()
             vc.play(audio_source, after=lambda e: self.disconnect_voice(vc))
 
-    def get_time_ranked_members_string(self):
-        ranking_message = "OTO NAJWIEKSZE NOLIFY NA TYM LEWACKIM DISCORDZIE: \n"
+    def get_time_ranked_members_embed(self):
+        medals_emojis = {
+            1: ":first_place:",
+            2: ":second_place:",
+            3: ":third_place:",
+            4: "4.",
+            5: "5."
+        }
+        embed = discord.Embed(title=random.choice(self.commands_config['show_rank']['ranking_starting_string']['time']),
+                              color=discord.Color.yellow(),
+                              timestamp=datetime.datetime.now())
         members = [Member(**data) for data in self.restclient.get_time_ranking()]
         for i, member in enumerate(members):
             dc_member = discord.utils.get(self.guilds[0].members, name=member.name)
             if dc_member:
-                ranking_message += f"{i + 1}. {get_member_nickname(dc_member)} ({dc_member.name}) - {convert_to_time(member.minutes_spent)}\n"
-        return ranking_message
+                embed.add_field(name=medals_emojis[i + 1],
+                                value=f"**```{get_member_nickname(dc_member)} ({dc_member.name})"
+                                      f" - {convert_to_time(member.minutes_spent)}```**", inline=False)
+        return embed
 
     def get_configurators(self):
         self.configurators = [Member(**member) for member in self.restclient.get_discord_members() if
@@ -165,15 +205,19 @@ class FilipRBot(commands.Bot):
         if vc:
             asyncio.run_coroutine_threadsafe(vc.disconnect(), vc.loop)
 
+    def load_commands_config(self):
+        with open('commands_config.yaml', 'r') as yaml_file:
+            self.commands_config = yaml.safe_load(yaml_file)
+        self.logger.info("Loaded commands config")
+
 
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--rj', type=int, default=1, help='Random joining 0-off 1-on')
-
     args = parser.parse_args()
 
     config = {
-        "--rj": args.rj
+        "--rj": args.rj,
     }
 
     bot = FilipRBot(config)
