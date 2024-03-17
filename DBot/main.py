@@ -91,15 +91,23 @@ class FilipRBot(commands.Bot):
                         self.time_method = time_method
                         self.points_method = points_method
 
-                    @discord.ui.button(label="Czasu", custom_id="time_button", style=discord.ButtonStyle.secondary, emoji="⏱")
+                    @discord.ui.button(label="Czasu", custom_id="time_button", style=discord.ButtonStyle.secondary,
+                                       emoji="⏱")
                     async def time_callback(self, interaction, button):
                         if ctx.author.id == interaction.user.id:
-                            await interaction.response.send_message(embed=self.time_method())
+                            for child in self.children:
+                                if isinstance(child, discord.ui.Button):
+                                    child.disabled = True
+                            await interaction.response.edit_message(embed=self.time_method(), view=self)
 
-                    @discord.ui.button(label="Punktow", custom_id="points_button", style=discord.ButtonStyle.secondary, emoji="💯")
+                    @discord.ui.button(label="Punktow", custom_id="points_button", style=discord.ButtonStyle.secondary,
+                                       emoji="💯")
                     async def points_callback(self, interaction, button):
                         if ctx.author.id == interaction.user.id:
-                            await interaction.response.send_message(embed=self.points_method())
+                            for child in self.children:
+                                if isinstance(child, discord.ui.Button):
+                                    child.disabled = True
+                            await interaction.response.send_message(embed=self.points_method(), view=self)
 
                 await ctx.send(random.choice(self.commands_config['show_rank']['types_response']),
                                view=RankingView(self.get_time_ranked_members_embed, None))
@@ -141,21 +149,7 @@ class FilipRBot(commands.Bot):
         self.logger.info("Checking channels for active users")
         for member in self.guilds[0].members:
             if member.voice:
-                if member in self.active_members:
-                    self.active_members[member] += 1
-                    self.logger.info(
-                        f"Member {member.name} has been active for {self.active_members[member]} minutes")
-                else:
-                    self.active_members[member] = 0
-                    self.logger.info(f"Member {member.name} just joined the channel")
-            else:
-                if member in self.active_members:
-                    self.logger.info(f"Member {member.name} just disconnected")
-                    try:
-                        self.restclient.set_new_minutes_spent(member.name, self.active_members[member])
-                        del self.active_members[member]
-                    except ValueError:
-                        self.logger.info(f"Couldn't send request for member {member.name}")
+                self.restclient.set_new_minutes_spent(member.name, 1)
 
     @tasks.loop(minutes=1)
     async def decide_and_join_channel(self, join_chance):
