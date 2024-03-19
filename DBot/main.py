@@ -84,34 +84,32 @@ class FilipRBot(commands.Bot):
         @self.command(name=self.commands_config['show_rank']['command_name'],
                       aliases=self.commands_config['show_rank']['aliases'])
         async def show_rank(ctx, rank=None):
-            if rank == self.commands_config['show_rank']['argument_required']:
-                class RankingView(discord.ui.View):
-                    def __init__(self, time_method, points_method):
-                        super().__init__()
-                        self.time_method = time_method
-                        self.points_method = points_method
+            class RankingView(discord.ui.View):
+                def __init__(self, time_method, points_method):
+                    super().__init__()
+                    self.time_method = time_method
+                    self.points_method = points_method
 
-                    @discord.ui.button(label="Czasu", custom_id="time_button", style=discord.ButtonStyle.secondary,
-                                       emoji="⏱")
-                    async def time_callback(self, interaction, button):
-                        if ctx.author.id == interaction.user.id:
-                            for child in self.children:
-                                if isinstance(child, discord.ui.Button):
-                                    child.disabled = True
-                            await interaction.response.edit_message(embed=self.time_method(), view=self)
+                @discord.ui.button(label="Czasu", custom_id="time_button", style=discord.ButtonStyle.secondary,
+                                   emoji="⏱")
+                async def time_callback(self, interaction, button):
+                    if ctx.author.id == interaction.user.id:
+                        for child in self.children:
+                            if isinstance(child, discord.ui.Button):
+                                child.disabled = True
+                        await interaction.response.edit_message(embed=self.time_method(), view=self)
 
-                    @discord.ui.button(label="Punktow", custom_id="points_button", style=discord.ButtonStyle.secondary,
-                                       emoji="💯")
-                    async def points_callback(self, interaction, button):
-                        if ctx.author.id == interaction.user.id:
-                            for child in self.children:
-                                if isinstance(child, discord.ui.Button):
-                                    child.disabled = True
-                            await interaction.response.send_message(embed=self.points_method(), view=self)
+                @discord.ui.button(label="Punktow", custom_id="points_button", style=discord.ButtonStyle.secondary,
+                                   emoji="💯")
+                async def points_callback(self, interaction, button):
+                    if ctx.author.id == interaction.user.id:
+                        for child in self.children:
+                            if isinstance(child, discord.ui.Button):
+                                child.disabled = True
+                        await interaction.response.send_message(embed=self.points_method(), view=self)
 
-                await ctx.send(random.choice(self.commands_config['show_rank']['types_response']),
-                               view=RankingView(self.get_time_ranked_members_embed, None))
-
+            await ctx.send(random.choice(self.commands_config['show_rank']['types_response']),
+                           view=RankingView(self.get_time_ranked_members_embed, None))
 
         @channel_check(CHANNEL_NAME)
         @self.command(name="test")
