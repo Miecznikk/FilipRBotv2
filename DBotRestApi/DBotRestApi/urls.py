@@ -24,3 +24,4 @@ urlpatterns = [
     path('api/utils/', include('Utils.urls')),
     path('api/messages/', include('Responses.urls'))
 ]
+

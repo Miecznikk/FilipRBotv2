@@ -9,6 +9,8 @@ from dotenv import load_dotenv
 import os
 import queue
 import argparse
+from utils.Views import QuestionView, QuizView, RankingView
+from utils.models.Question import Question
 from utils.utils import get_member_nickname, convert_to_time, channel_check, check_in_call
 from utils.models.Member import Member
 from utils.models.roles import GameRole
@@ -36,6 +38,7 @@ class FilipRBot(commands.Bot):
         self.logger = logging.getLogger(self.__class__.__name__)
         self.logger.setLevel(logging.INFO)
         self.active_members = {}
+        self.recently_called_games = []
 
         console_handler = logging.StreamHandler()
         console_handler.setLevel(logging.INFO)
@@ -65,6 +68,11 @@ class FilipRBot(commands.Bot):
             try:
                 game_role = GameRole(**self.restclient.get_game_role(args[-1])[0])
                 role = discord.utils.get(self.guilds[0].roles, name=game_role.name)
+                if role in self.recently_called_games:
+                    await ctx.send(random.choice(self.commands_config['call_for_game']['already_called_error']))
+                    return
+                else:
+                    self.recently_called_games.append(role)
             except ValueError:
                 await ctx.send(random.choice(self.commands_config['call_for_game']['value_error']))
                 return
@@ -79,54 +87,75 @@ class FilipRBot(commands.Bot):
                         await member.send(
                             f"{random.choice(self.commands_config['call_for_game']['message'])} {game_role.game_assigned.upper()}")
 
+            await asyncio.sleep(int(os.getenv("CALL_FOR_GAME_TIMEOUT")) * 60)
+            self.recently_called_games.remove(role)
+
         @check_in_call(self)
         @channel_check(CHANNEL_NAME)
         @self.command(name=self.commands_config['show_rank']['command_name'],
                       aliases=self.commands_config['show_rank']['aliases'])
         async def show_rank(ctx, rank=None):
-            class RankingView(discord.ui.View):
-                def __init__(self, time_method, points_method):
-                    super().__init__()
-                    self.time_method = time_method
-                    self.points_method = points_method
-
-                @discord.ui.button(label="Czasu", custom_id="time_button", style=discord.ButtonStyle.secondary,
-                                   emoji="⏱")
-                async def time_callback(self, interaction, button):
-                    if ctx.author.id == interaction.user.id:
-                        for child in self.children:
-                            if isinstance(child, discord.ui.Button):
-                                child.disabled = True
-                        await interaction.response.edit_message(embed=self.time_method(), view=self)
-
-                @discord.ui.button(label="Punktow", custom_id="points_button", style=discord.ButtonStyle.secondary,
-                                   emoji="💯")
-                async def points_callback(self, interaction, button):
-                    if ctx.author.id == interaction.user.id:
-                        for child in self.children:
-                            if isinstance(child, discord.ui.Button):
-                                child.disabled = True
-                        await interaction.response.send_message(embed=self.points_method(), view=self)
-
             await ctx.send(random.choice(self.commands_config['show_rank']['types_response']),
-                           view=RankingView(self.get_time_ranked_members_embed, None))
+                           view=RankingView(self.get_time_ranked_members_embed, None, ctx))
 
         @channel_check(CHANNEL_NAME)
         @self.command(name="test")
         async def test(ctx):
-            class MyView(discord.ui.View):
-                @discord.ui.button(label="CLICK ME!", style=discord.ButtonStyle.primary)
-                async def button_callback(self, interaction, button):
-                    await interaction.response.send_message("You clicked me")
+            pass
 
-            await ctx.send("hejka", view=MyView())
+        @channel_check(CHANNEL_NAME)
+        @self.command(name="quiz")
+        async def quiz(ctx):
+            view = QuizView()
+            message = await ctx.send(self.commands_config['games']['quiz_game']['invite'], view=view)
+            await asyncio.sleep(15)
+            view.disable_button()
+            await message.edit(view=view)
+            await ctx.send(f"GRAJĄCY: {', '.join([user.name for user in view.playing_users])}")
+            await self.quiz_game(ctx, view.playing_users)
+
+    async def quiz_game(self, ctx, playing_members):
+        config = self.commands_config['games']['quiz_game']
+        rules_embed = discord.Embed(title=random.choice(config['rules']['title']),
+                                    color=discord.Color.random(),
+                                    description=config['rules']['description'])
+        await ctx.send(embed=rules_embed)
+        await asyncio.sleep(10)
+        members_points = {member: 0 for member in playing_members}
+        question_views = [
+            QuestionView(members_points, {member: False for member in playing_members},
+                         Question("Kiedy była bitwa pod Grunwaldem?",
+                                  ["1410", "966", "1550"],
+                                  0, "Historia")),
+            QuestionView(members_points, {member: False for member in playing_members},
+                         Question("O której umarł Jan Paweł II",
+                                  ["21:37", "14:10", "13:37"],
+                                  0, "Historia")),
+            QuestionView(members_points, {member: False for member in playing_members},
+                         Question("Ile lat ma brat Karola J",
+                                  ["18", "17-18", "16-19"],
+                                  0, "Spocone Ręczniki"))
+        ]
+        for question_view in question_views:
+            message = await ctx.send(f"{question_view.question.category} : {question_view.question.question}",
+                                     view=question_view)
+            await asyncio.sleep(15)
+            question_view.disable_buttons()
+            await message.edit(view=question_view)
+            await ctx.send(random.choice(config['answered_correctly']).format(
+                "\n".join([get_member_nickname(answered) for answered in
+                           question_view.answered_correctly if
+                           question_view.answered_correctly[
+                               answered] == True])
+                + "\n-------------------------------------------------------"))
+            await asyncio.sleep(5)
 
     async def default_message(self, ctx):
         if not self.julia_call:
             if random.randint(1, 100) <= int(os.getenv("JULIA_CALL_RATE")):
                 await ctx.send("JULIA DZWONI ZW")
                 self.julia_call = True
-                await asyncio.sleep(int(os.getenv("JULIA_CALL_TIMEOUT")))
+                await asyncio.sleep(int(os.getenv("JULIA_CALL_TIMEOUT")) * 60)
                 self.julia_call = False
                 await ctx.send("DOBRA JUZ JESTEM")
             else:
