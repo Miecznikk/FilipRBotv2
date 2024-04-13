@@ -11,7 +11,7 @@ import queue
 import argparse
 from utils.Views import QuestionView, QuizView, RankingView
 from utils.models.Question import Question
-from utils.utils import get_member_nickname, convert_to_time, channel_check, check_in_call
+from utils.utils import get_member_nickname, convert_to_time, channel_check, check_in_call, check_in_game
 from utils.models.Member import Member
 from utils.models.roles import GameRole
 from rest_client import RestClient
@@ -29,6 +29,7 @@ class FilipRBot(commands.Bot):
     configurators = None
     commands_config = None
     julia_call = False
+    in_game = False
 
     def __init__(self, config):
         super().__init__(command_prefix=PREFIX, intents=discord.Intents(members=True, voice_states=True, guilds=True,
@@ -60,6 +61,7 @@ class FilipRBot(commands.Bot):
 
     def add_commands(self):
         @check_in_call(self)
+        @check_in_game(self)
         @channel_check(CHANNEL_NAME)
         @self.command(name=self.commands_config['call_for_game']['command_name'])
         async def call_for_game(ctx, *args):
@@ -92,63 +94,87 @@ class FilipRBot(commands.Bot):
 
         @check_in_call(self)
         @channel_check(CHANNEL_NAME)
+        @check_in_game(self)
         @self.command(name=self.commands_config['show_rank']['command_name'],
                       aliases=self.commands_config['show_rank']['aliases'])
         async def show_rank(ctx, rank=None):
             await ctx.send(random.choice(self.commands_config['show_rank']['types_response']),
-                           view=RankingView(self.get_time_ranked_members_embed, None, ctx))
+                           view=RankingView(self.get_time_ranked_members_embed, self.get_points_ranked_members_embed,
+                                            ctx))
 
         @channel_check(CHANNEL_NAME)
         @self.command(name="test")
         async def test(ctx):
             pass
 
+        @check_in_call(self)
+        @check_in_game(self)
         @channel_check(CHANNEL_NAME)
-        @self.command(name="quiz")
-        async def quiz(ctx):
+        @self.command(name=self.commands_config['games']['quiz_game']['command_name'])
+        async def quiz(ctx: discord.ext.commands.Context):
             view = QuizView()
             message = await ctx.send(self.commands_config['games']['quiz_game']['invite'], view=view)
-            await asyncio.sleep(15)
+            await asyncio.sleep(5)
             view.disable_button()
             await message.edit(view=view)
+            if len(view.playing_users) < 2:
+                await ctx.send(random.choice(self.commands_config['games']['quiz_game']['not_enough_players']))
+                return
+            self.in_game = True
+            guild, category = ctx.guild, ctx.channel.category
+            if discord.utils.get(guild.channels, name="❓ quiz ❓"):
+                await ctx.send(f"error")
+                return
+            else:
+                quiz_channel = await guild.create_text_channel("❓ quiz ❓", category=category)
+                await quiz_channel.set_permissions(guild.default_role, read_messages=False)
+                for member in view.playing_users:
+                    await quiz_channel.set_permissions(member, read_messages=True, send_messages=False)
             await ctx.send(f"GRAJĄCY: {', '.join([user.name for user in view.playing_users])}")
-            await self.quiz_game(ctx, view.playing_users)
+            await ctx.send(random.choice(self.commands_config['games']['quiz_game']['created_channel']))
+            string = await self.quiz_game(quiz_channel, view.playing_users)
+            await ctx.send("##########################################")
+            await ctx.send(random.choice(self.commands_config['games']['quiz_game']['end_game']).format(string))
+            await quiz_channel.delete()
 
-    async def quiz_game(self, ctx, playing_members):
+    async def quiz_game(self, channel, playing_members):
         config = self.commands_config['games']['quiz_game']
         rules_embed = discord.Embed(title=random.choice(config['rules']['title']),
                                     color=discord.Color.random(),
                                     description=config['rules']['description'])
-        await ctx.send(embed=rules_embed)
-        await asyncio.sleep(10)
+        await channel.send(embed=rules_embed)
+        questions = [Question(**question) for question in self.restclient.get_questions(2)]
+        await asyncio.sleep(15)
         members_points = {member: 0 for member in playing_members}
-        question_views = [
-            QuestionView(members_points, {member: False for member in playing_members},
-                         Question("Kiedy była bitwa pod Grunwaldem?",
-                                  ["1410", "966", "1550"],
-                                  0, "Historia")),
-            QuestionView(members_points, {member: False for member in playing_members},
-                         Question("O której umarł Jan Paweł II",
-                                  ["21:37", "14:10", "13:37"],
-                                  0, "Historia")),
-            QuestionView(members_points, {member: False for member in playing_members},
-                         Question("Ile lat ma brat Karola J",
-                                  ["18", "17-18", "16-19"],
-                                  0, "Spocone Ręczniki"))
-        ]
+        question_views = [QuestionView(members_points, {member: False for member in playing_members},
+                                       question) for question in questions]
         for question_view in question_views:
-            message = await ctx.send(f"{question_view.question.category} : {question_view.question.question}",
+            message = await channel.send(f"{question_view.question.category} : {question_view.question.question}",
                                      view=question_view)
             await asyncio.sleep(15)
             question_view.disable_buttons()
             await message.edit(view=question_view)
-            await ctx.send(random.choice(config['answered_correctly']).format(
-                "\n".join([get_member_nickname(answered) for answered in
+            await channel.send(random.choice(config['answered_correctly']).format(
+                ",".join([get_member_nickname(answered) for answered in
                            question_view.answered_correctly if
                            question_view.answered_correctly[
                                answered] == True])
                 + "\n-------------------------------------------------------"))
             await asyncio.sleep(5)
+
+        string = "\n".join([f"{get_member_nickname(member)} : {points}/10"
+                            for member, points in sorted(members_points.items(), key=lambda x: x[1], reverse=True)])
+        self.in_game = False
+        self.quiz_points_distribute(members_points)
+        return string
+
+    def quiz_points_distribute(self, members_points):
+        max_points = max(members_points.values())
+        second_greatest_points = max(set(members_points.values()) - {max_points}, default=max_points)
+
+        for member, points in members_points.items():
+            if points in {max_points, second_greatest_points}:
+                self.restclient.add_points_to_member(member.name, 10 if points == max_points else 5)
 
     async def default_message(self, ctx):
         if not self.julia_call:
@@ -163,7 +189,8 @@ class FilipRBot(commands.Bot):
 
     async def on_command_error(self, ctx, error):
         if isinstance(error, commands.CommandNotFound) and ctx.channel.name == CHANNEL_NAME:
-            await self.default_message(ctx)
+            if not self.in_game:
+                await self.default_message(ctx)
         else:
             self.logger.info(f"Something went wrong: {error}")
 
@@ -212,6 +239,26 @@ class FilipRBot(commands.Bot):
                 embed.add_field(name=medals_emojis[i + 1],
                                 value=f"**```{get_member_nickname(dc_member)} ({dc_member.name})"
                                       f" - {convert_to_time(member.minutes_spent)}```**", inline=False)
+        return embed
+
+    def get_points_ranked_members_embed(self):
+        medals_emojis = {
+            1: ":first_place:",
+            2: ":second_place:",
+            3: ":third_place:",
+            4: "4.",
+            5: "5."
+        }
+        embed = discord.Embed(title=random.choice(self.commands_config['show_rank']['ranking_starting_string']['points']),
+                              color=discord.Color.random(),
+                              timestamp=datetime.datetime.now())
+        members = [Member(**data) for data in self.restclient.get_points_ranking()]
+        for i, member in enumerate(members):
+            dc_member = discord.utils.get(self.guilds[0].members, name=member.name)
+            if dc_member:
+                embed.add_field(name=medals_emojis[i + 1],
+                                value=f"**```{get_member_nickname(dc_member)} ({dc_member.name})"
+                                      f" - {member.points}```**", inline=False)
         return embed
 
     def get_configurators(self):

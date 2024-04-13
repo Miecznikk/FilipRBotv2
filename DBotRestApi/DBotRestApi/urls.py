@@ -22,6 +22,7 @@ urlpatterns = [
     path('authenticate/', AuthTokenAPIView.as_view(), name='authenticate'),
     path('api/members/', include('Members.urls')),
     path('api/utils/', include('Utils.urls')),
-    path('api/messages/', include('Responses.urls'))
+    path('api/messages/', include('Responses.urls')),
+    path('api/quiz/', include('QuizGame.urls'))
 ]
 

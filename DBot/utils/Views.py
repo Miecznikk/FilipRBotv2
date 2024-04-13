@@ -9,8 +9,9 @@ class QuestionView(discord.ui.View):
         self.points = points
         self.already_answered = []
         self.answered_correctly = already_answered
+        labels = question.answers.split(",")
         for i in range(3):
-            self.children[i].label = self.question.answers[i]
+            self.children[i].label = labels[i]
 
     async def validate_answer(self, interaction, correct_answer):
         if interaction.user not in self.points or interaction.user in self.already_answered:
@@ -42,12 +43,14 @@ class QuestionView(discord.ui.View):
 
 class QuizView(discord.ui.View):
     playing_users = []
+    def __init__(self):
+        super().__init__()
+        self.playing_users = []
 
     @discord.ui.button(label="JA", style=discord.ButtonStyle.primary)
     async def add_user_to_game(self, interaction, button):
         if interaction.user not in self.playing_users:
             self.playing_users.append(interaction.user)
-            await interaction.response.send_message(f"+{get_member_nickname(interaction.user).upper()}")
 
     def disable_button(self):
         self.children[0].disabled = True

@@ -83,7 +83,29 @@ class RestClient:
         else:
             raise ValueError("Something went wrong while retrieving default message" + str(response))
 
+    def get_questions(self, number_of_questions):
+        response = requests.get(f"{self.url}/api/quiz/questions/{number_of_questions}",
+                                headers={"Authorization": f"Token {self.get_authenticate_token()}"})
+        if response.status_code == 200:
+            return response.json()
+        else:
+            raise ValueError("Something went wrong while retrieving questions" + str(response))
+
+    def add_points_to_member(self, member, points):
+        response = requests.post(f"{self.url}/api/members/points/add/{member}/{points}/",
+                                 headers={"Authorization": f"Token {self.get_authenticate_token()}"})
+        if response.status_code == 200:
+            return response.json()
+        else:
+            raise ValueError(f"Something went wrong while adding points to member {member}" + str(response))
+
+    def get_points_ranking(self):
+        response = requests.get(f"{self.url}/api/members/points/ranking/",
+                                headers={"Authorization": f"Token {self.get_authenticate_token()}"})
+        if response.status_code == 200:
+            return response.json()
+
 
 if __name__ == "__main__":
     rc = RestClient()
-    print(rc.get_default_message("miecznikk", "daj dupy"))
+    print(rc.get_points_ranking())

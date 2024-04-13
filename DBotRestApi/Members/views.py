@@ -54,4 +54,23 @@ class GetTimeRankedMembersAPIView(APIView):
         members = Member.objects.order_by('-minutes_spent')[:5]
         serializer = MemberSerializer(members, many=True)
         return Response(serializer.data)
+
+
+class GetPointsRankedMembersAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, reqest):
+        members = Member.objects.order_by('-points')[:5]
+        serializer = MemberSerializer(members, many=True)
+        return Response(serializer.data)
+
+
+class AddPointsToMember(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, member_name, points):
+        member = get_object_or_404(Member, name=member_name)
+        member.points += points
+        member.save()
+        return Response({"message": "OK"}, status=status.HTTP_200_OK)
 # Create your views here.

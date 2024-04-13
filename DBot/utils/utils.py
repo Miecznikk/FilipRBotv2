@@ -26,3 +26,10 @@ def check_in_call(bot_instance):
         return not bot_instance.julia_call
 
     return check(predicate)
+
+
+def check_in_game(bot_instance):
+    def predicate(ctx, *args):
+        return not bot_instance.in_game
+
+    return check(predicate)

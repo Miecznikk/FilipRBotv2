@@ -45,7 +45,8 @@ INSTALLED_APPS = [
     'rest_framework.authtoken',
     'Members',
     'Utils',
-    'Responses'
+    'Responses',
+    'QuizGame'
 ]
 
 REST_FRAMEWORK = {
