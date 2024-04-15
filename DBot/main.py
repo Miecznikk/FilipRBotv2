@@ -4,23 +4,21 @@ import random
 import re
 
 import discord
-import yaml
 from discord.ext import commands, tasks
 from dotenv import load_dotenv
 import os
 import queue
-import argparse
 from utils.Views import QuestionView, QuizView, RankingView
-from models import Question
-from utils.utils import get_member_nickname, convert_to_time, channel_check, check_in_call, check_in_game
-from models import Member
-from models import GameRole
+from utils.models.Member import Member
+from utils.models.Question import Question
+from utils.models.Role import GameRole
+from utils.utils import (get_member_nickname, convert_to_time, channel_check, check_in_call, check_in_game,
+                         load_commands_config)
 from Controllers.rest_controller import RestController
 from Controllers.youtube_controller import download_single_video_mp3
 import logging
 
 load_dotenv()
-
 TOKEN = os.getenv("TOKEN")
 PREFIX = os.getenv("PREFIX") + " "
 CHANNEL_NAME = os.getenv("CHANNEL_NAME")
@@ -33,11 +31,10 @@ class FilipRBot(commands.Bot):
     julia_call = False
     in_game = False
 
-    def __init__(self, config):
+    def __init__(self):
         super().__init__(command_prefix=PREFIX, intents=discord.Intents(members=True, voice_states=True, guilds=True,
                                                                         guild_messages=True, message_content=True))
 
-        self.config = config
         self.logger = logging.getLogger(self.__class__.__name__)
         self.logger.setLevel(logging.INFO)
         self.active_members = {}
@@ -51,7 +48,7 @@ class FilipRBot(commands.Bot):
         self.logger.addHandler(console_handler)
 
         self.restclient = RestController()
-        self.load_commands_config()
+        self.commands_config = load_commands_config()
         self.add_commands()
 
     async def on_ready(self):
@@ -99,7 +96,8 @@ class FilipRBot(commands.Bot):
                       aliases=self.commands_config['show_rank']['aliases'])
         async def show_rank(ctx, rank=None):
             await ctx.send(random.choice(self.commands_config['show_rank']['types_response']),
-                           view=RankingView(self.get_time_ranked_members_embed, self.get_points_ranked_members_embed,
+                           view=RankingView(lambda: self.get_points_or_time_ranked_members_embed('time'),
+                                            lambda: self.get_points_or_time_ranked_members_embed('points'),
                                             ctx))
 
         @channel_check(CHANNEL_NAME)
@@ -168,7 +166,6 @@ class FilipRBot(commands.Bot):
                     await vc.connect()
                 await self.play_next(ctx)
 
-
         @self.command(name="clear")
         async def clear(ctx: discord.ext.commands.Context):
             self.audio_queue.queue.clear()
@@ -189,6 +186,36 @@ class FilipRBot(commands.Bot):
                 await ctx.send("KURWA NIC NIE GRAM MATOLE JEBANY")
                 return
             await ctx.send(self.currently_playing_audio)
+
+    @tasks.loop(minutes=1)
+    async def check_members_on_voice_channels(self):
+        self.logger.info("Checking channels for active users")
+        for member in self.guilds[0].members:
+            if member.voice:
+                try:
+                    self.restclient.set_new_minutes_spent(member.name, 1)
+                except ValueError:
+                    self.logger.error(f"Not found user {member.name}")
+
+    @tasks.loop(minutes=1)
+    async def decide_and_join_channel(self, join_chance):
+        voice_channels = self.guilds[0].voice_channels
+
+        eligible_channels = [channel for channel in voice_channels if len(channel.members) >= 1]
+
+        if not eligible_channels:
+            return
+        vc = self.guilds[0].voice_client
+        if random.randint(1, 100) <= join_chance and not vc:
+            random_channel = random.choice(eligible_channels)
+            try:
+                audio_path = self.restclient.get_random_connect_audio()
+            except ValueError as e:
+                self.logger.error(e)
+                return
+            audio_source = discord.FFmpegPCMAudio(audio_path)
+            vc = await random_channel.connect()
+            vc.play(audio_source, after=lambda e: self.disconnect_voice(vc))
 
     @commands.Cog.listener()
     async def on_voice_state_update(self, member, before, after):
@@ -252,57 +279,11 @@ class FilipRBot(commands.Bot):
         else:
             self.logger.info(f"Something went wrong: {error}")
 
-    @tasks.loop(minutes=1)
-    async def check_members_on_voice_channels(self):
-        self.logger.info("Checking channels for active users")
-        for member in self.guilds[0].members:
-            if member.voice:
-                try:
-                    self.restclient.set_new_minutes_spent(member.name, 1)
-                except ValueError:
-                    self.logger.error(f"Not found user {member.name}")
-
-    @tasks.loop(minutes=1)
-    async def decide_and_join_channel(self, join_chance):
-        voice_channels = self.guilds[0].voice_channels
-
-        eligible_channels = [channel for channel in voice_channels if len(channel.members) >= 1]
-
-        if not eligible_channels:
-            return
-        vc = self.guilds[0].voice_client
-        if random.randint(1, 100) <= join_chance and not vc:
-            random_channel = random.choice(eligible_channels)
-            try:
-                audio_path = self.restclient.get_random_connect_audio()
-            except ValueError as e:
-                self.logger.error(e)
-                return
-            audio_source = discord.FFmpegPCMAudio(audio_path)
-            vc = await random_channel.connect()
-            vc.play(audio_source, after=lambda e: self.disconnect_voice(vc))
-
-    def get_time_ranked_members_embed(self):
-        medals_emojis = {
-            1: ":first_place:",
-            2: ":second_place:",
-            3: ":third_place:",
-            4: "4.",
-            5: "5."
+    def get_points_or_time_ranked_members_embed(self, rank_type):
+        methods = {
+            'time': self.restclient.get_time_ranking,
+            'points': self.restclient.get_points_ranking
         }
-        embed = discord.Embed(title=random.choice(self.commands_config['show_rank']['ranking_starting_string']['time']),
-                              color=discord.Color.random(),
-                              timestamp=datetime.datetime.now())
-        members = [Member(**data) for data in self.restclient.get_time_ranking()]
-        for i, member in enumerate(members):
-            dc_member = discord.utils.get(self.guilds[0].members, name=member.name)
-            if dc_member:
-                embed.add_field(name=medals_emojis[i + 1],
-                                value=f"**```{get_member_nickname(dc_member)} ({dc_member.name})"
-                                      f" - {convert_to_time(member.minutes_spent)}```**", inline=False)
-        return embed
-
-    def get_points_ranked_members_embed(self):
         medals_emojis = {
             1: ":first_place:",
             2: ":second_place:",
@@ -311,26 +292,25 @@ class FilipRBot(commands.Bot):
             5: "5."
         }
         embed = discord.Embed(
-            title=random.choice(self.commands_config['show_rank']['ranking_starting_string']['points']),
+            title=random.choice(self.commands_config['show_rank']['ranking_starting_string'][rank_type]),
             color=discord.Color.random(),
             timestamp=datetime.datetime.now())
-        members = [Member(**data) for data in self.restclient.get_points_ranking()]
+        members = [Member(**data) for data in methods[rank_type]()]
         for i, member in enumerate(members):
             dc_member = discord.utils.get(self.guilds[0].members, name=member.name)
             if dc_member:
+                if rank_type == 'time':
+                    value = convert_to_time(member.minutes_spent)
+                else:
+                    value = member.points
                 embed.add_field(name=medals_emojis[i + 1],
                                 value=f"**```{get_member_nickname(dc_member)} ({dc_member.name})"
-                                      f" - {member.points}```**", inline=False)
+                                      f" - {value}```**", inline=False)
         return embed
 
     def disconnect_voice(self, vc):
         if vc:
             asyncio.run_coroutine_threadsafe(vc.disconnect(), vc.loop)
-
-    def load_commands_config(self):
-        with open('utils/commands_config.yaml', 'r') as yaml_file:
-            self.commands_config = yaml.safe_load(yaml_file)
-        self.logger.info("Loaded commands config")
 
     async def play_next(self, ctx):
         if self.audio_queue.empty():
@@ -345,15 +325,7 @@ class FilipRBot(commands.Bot):
 
 
 def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--rj', type=int, default=1, help='Random joining 0-off 1-on')
-    args = parser.parse_args()
-
-    config = {
-        "--rj": args.rj,
-    }
-
-    bot = FilipRBot(config)
+    bot = FilipRBot()
     try:
         bot.run(TOKEN)
     except discord.PrivilegedIntentsRequired as error:

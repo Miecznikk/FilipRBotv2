@@ -1,3 +1,4 @@
+import yaml
 from discord.ext.commands import check, CheckFailure
 
 
@@ -33,3 +34,8 @@ def check_in_game(bot_instance):
         return not bot_instance.in_game
 
     return check(predicate)
+
+
+def load_commands_config():
+    with open('utils/commands_config.yaml', 'r') as yaml_file:
+        return yaml.safe_load(yaml_file)

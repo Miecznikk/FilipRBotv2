@@ -51,6 +51,7 @@ class QuizView(discord.ui.View):
     async def add_user_to_game(self, interaction, button):
         if interaction.user not in self.playing_users:
             self.playing_users.append(interaction.user)
+            await interaction.response.defer()
 
     def disable_button(self):
         self.children[0].disabled = True
