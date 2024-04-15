@@ -3,3 +3,5 @@ python-dotenv
 pyyaml
 requests
 pynacl
+pytube
+moviepy

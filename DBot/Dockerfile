@@ -6,10 +6,10 @@ WORKDIR /app
 
 COPY main.py .
 COPY requirements.txt .
-COPY rest_client.py .
+COPY Controllers/rest_controller.py .
 COPY .env .
 COPY utils ./utils
-COPY commands_config.yaml .
+COPY utils/commands_config.yaml .
 
 
 RUN pip install --no-cache-dir -r requirements.txt

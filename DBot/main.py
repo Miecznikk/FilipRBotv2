@@ -1,6 +1,7 @@
 import asyncio
 import datetime
 import random
+import re
 
 import discord
 import yaml
@@ -10,11 +11,12 @@ import os
 import queue
 import argparse
 from utils.Views import QuestionView, QuizView, RankingView
-from utils.models.Question import Question
+from models import Question
 from utils.utils import get_member_nickname, convert_to_time, channel_check, check_in_call, check_in_game
-from utils.models.Member import Member
-from utils.models.roles import GameRole
-from rest_client import RestClient
+from models import Member
+from models import GameRole
+from Controllers.rest_controller import RestController
+from Controllers.youtube_controller import download_single_video_mp3
 import logging
 
 load_dotenv()
@@ -26,7 +28,7 @@ CHANNEL_NAME = os.getenv("CHANNEL_NAME")
 
 class FilipRBot(commands.Bot):
     audio_queue = queue.Queue()
-    configurators = None
+    currently_playing_audio = ""
     commands_config = None
     julia_call = False
     in_game = False
@@ -48,16 +50,14 @@ class FilipRBot(commands.Bot):
 
         self.logger.addHandler(console_handler)
 
-        self.restclient = RestClient()
+        self.restclient = RestController()
         self.load_commands_config()
         self.add_commands()
 
     async def on_ready(self):
         self.logger.info(f"Logged in as {self.user}")
-        self.get_configurators()
         self.check_members_on_voice_channels.start()
-        if self.config['--rj']:
-            self.decide_and_join_channel.start(int(os.getenv("JOIN_RATE")))
+        self.decide_and_join_channel.start(int(os.getenv("JOIN_RATE")))
 
     def add_commands(self):
         @check_in_call(self)
@@ -137,6 +137,64 @@ class FilipRBot(commands.Bot):
             await ctx.send(random.choice(self.commands_config['games']['quiz_game']['end_game']).format(string))
             await quiz_channel.delete()
 
+        @self.command(name="play")
+        async def play(ctx: discord.ext.commands.Context, arg=None):
+            if arg is None:
+                if ctx.author.voice is None:
+                    await ctx.send("GDZIE MAM KURWA TO GRAC")
+                    return
+                else:
+                    vc = ctx.author.voice.channel
+                    if ctx.voice_client is not None:
+                        if ctx.voice_client.is_playing():
+                            await ctx.send("PRZECIEZ JUZ GRAM MATOLE JEBANY")
+                            return
+                        await ctx.voice_client.move_to(vc)
+                    else:
+                        await vc.connect()
+                    all_songs = os.listdir("media/youtube/")
+                    random.shuffle(all_songs)
+                    for song in all_songs:
+                        self.audio_queue.put("media/youtube/" + song)
+                    await self.play_next(ctx)
+            else:
+                path = download_single_video_mp3(arg)
+                vc = ctx.author.voice.channel
+                self.audio_queue.put(path)
+                if ctx.voice_client is not None:
+                    if ctx.voice_client.is_playing():
+                        return
+                else:
+                    await vc.connect()
+                await self.play_next(ctx)
+
+
+        @self.command(name="clear")
+        async def clear(ctx: discord.ext.commands.Context):
+            self.audio_queue.queue.clear()
+            await ctx.send("KOLEJKA CZYSTA WARIACIE")
+
+        @self.command(name="skip")
+        async def skip(ctx: discord.ext.commands.Context):
+            vc = self.guilds[0].voice_client
+            if not vc:
+                await ctx.send("NIE GRAM MUZYKI DOWNIE")
+            else:
+                if vc.is_playing():
+                    vc.stop()
+
+        @self.command(name="now_playing")
+        async def now_playing(ctx: discord.ext.commands.Context):
+            if self.currently_playing_audio == "":
+                await ctx.send("KURWA NIC NIE GRAM MATOLE JEBANY")
+                return
+            await ctx.send(self.currently_playing_audio)
+
+    @commands.Cog.listener()
+    async def on_voice_state_update(self, member, before, after):
+        if member.id == self.user.id and before.channel and not after.channel:
+            self.audio_queue.queue.clear()
+
     async def quiz_game(self, channel, playing_members):
         config = self.commands_config['games']['quiz_game']
         rules_embed = discord.Embed(title=random.choice(config['rules']['title']),
@@ -150,15 +208,15 @@ class FilipRBot(commands.Bot):
                                        question) for question in questions]
         for question_view in question_views:
             message = await channel.send(f"{question_view.question.category} : {question_view.question.question}",
-                                     view=question_view)
+                                         view=question_view)
             await asyncio.sleep(15)
             question_view.disable_buttons()
             await message.edit(view=question_view)
             await channel.send(random.choice(config['answered_correctly']).format(
                 ",".join([get_member_nickname(answered) for answered in
-                           question_view.answered_correctly if
-                           question_view.answered_correctly[
-                               answered] == True])
+                          question_view.answered_correctly if
+                          question_view.answered_correctly[
+                              answered] == True])
                 + "\n-------------------------------------------------------"))
             await asyncio.sleep(5)
 
@@ -199,7 +257,10 @@ class FilipRBot(commands.Bot):
         self.logger.info("Checking channels for active users")
         for member in self.guilds[0].members:
             if member.voice:
-                self.restclient.set_new_minutes_spent(member.name, 1)
+                try:
+                    self.restclient.set_new_minutes_spent(member.name, 1)
+                except ValueError:
+                    self.logger.error(f"Not found user {member.name}")
 
     @tasks.loop(minutes=1)
     async def decide_and_join_channel(self, join_chance):
@@ -249,9 +310,10 @@ class FilipRBot(commands.Bot):
             4: "4.",
             5: "5."
         }
-        embed = discord.Embed(title=random.choice(self.commands_config['show_rank']['ranking_starting_string']['points']),
-                              color=discord.Color.random(),
-                              timestamp=datetime.datetime.now())
+        embed = discord.Embed(
+            title=random.choice(self.commands_config['show_rank']['ranking_starting_string']['points']),
+            color=discord.Color.random(),
+            timestamp=datetime.datetime.now())
         members = [Member(**data) for data in self.restclient.get_points_ranking()]
         for i, member in enumerate(members):
             dc_member = discord.utils.get(self.guilds[0].members, name=member.name)
@@ -261,18 +323,25 @@ class FilipRBot(commands.Bot):
                                       f" - {member.points}```**", inline=False)
         return embed
 
-    def get_configurators(self):
-        self.configurators = [Member(**member) for member in self.restclient.get_discord_members() if
-                              member['configurator']]
-
     def disconnect_voice(self, vc):
         if vc:
             asyncio.run_coroutine_threadsafe(vc.disconnect(), vc.loop)
 
     def load_commands_config(self):
-        with open('commands_config.yaml', 'r') as yaml_file:
+        with open('utils/commands_config.yaml', 'r') as yaml_file:
             self.commands_config = yaml.safe_load(yaml_file)
         self.logger.info("Loaded commands config")
+
+    async def play_next(self, ctx):
+        if self.audio_queue.empty():
+            self.currently_playing_audio = ""
+            await ctx.voice_client.disconnect()
+            return
+        audio_path = self.audio_queue.get()
+        self.currently_playing_audio = re.search(r'[^/]+(?=\.mp3)', audio_path).group()
+        audio_source = discord.FFmpegPCMAudio(audio_path)
+        ctx.voice_client.play(audio_source,
+                              after=lambda e: asyncio.run_coroutine_threadsafe(self.play_next(ctx), self.loop))
 
 
 def main():

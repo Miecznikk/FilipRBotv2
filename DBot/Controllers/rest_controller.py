@@ -3,7 +3,7 @@ import os
 import requests
 
 
-class RestClient:
+class RestController:
     def __init__(self):
         load_dotenv()
         self.username = os.getenv("API_USERNAME")
@@ -68,7 +68,7 @@ class RestClient:
             "Authorization": f"Token {self.get_authenticate_token()}"
         })
         if response.status_code == 200:
-            with open('audio_file.mp3', 'wb') as f:
+            with open('../audio_file.mp3', 'wb') as f:
                 f.write(response.content)
             return 'audio_file.mp3'
         else:
