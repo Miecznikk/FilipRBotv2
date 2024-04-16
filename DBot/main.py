@@ -8,6 +8,9 @@ from discord.ext import commands, tasks
 from dotenv import load_dotenv
 import os
 import queue
+
+from pytube.exceptions import VideoUnavailable, RegexMatchError
+
 from utils.Views import QuestionView, QuizView, RankingView
 from utils.models.Member import Member
 from utils.models.Question import Question
@@ -15,7 +18,7 @@ from utils.models.Role import GameRole
 from utils.utils import (get_member_nickname, convert_to_time, channel_check, check_in_call, check_in_game,
                          load_commands_config)
 from Controllers.rest_controller import RestController
-from Controllers.youtube_controller import download_single_video_mp3
+from Controllers.youtube_controller import YoutubeMusicController, VideoTooLong
 import logging
 
 load_dotenv()
@@ -94,7 +97,7 @@ class FilipRBot(commands.Bot):
         @check_in_game(self)
         @self.command(name=self.commands_config['show_rank']['command_name'],
                       aliases=self.commands_config['show_rank']['aliases'])
-        async def show_rank(ctx, rank=None):
+        async def show_rank(ctx):
             await ctx.send(random.choice(self.commands_config['show_rank']['types_response']),
                            view=RankingView(lambda: self.get_points_or_time_ranked_members_embed('time'),
                                             lambda: self.get_points_or_time_ranked_members_embed('points'),
@@ -137,34 +140,31 @@ class FilipRBot(commands.Bot):
 
         @self.command(name="play")
         async def play(ctx: discord.ext.commands.Context, arg=None):
+            if ctx.author.voice is None:
+                await ctx.send("GDZIE MAM KURWA TO GRAC")
+                return
             if arg is None:
-                if ctx.author.voice is None:
-                    await ctx.send("GDZIE MAM KURWA TO GRAC")
-                    return
-                else:
-                    vc = ctx.author.voice.channel
-                    if ctx.voice_client is not None:
-                        if ctx.voice_client.is_playing():
-                            await ctx.send("PRZECIEZ JUZ GRAM MATOLE JEBANY")
-                            return
-                        await ctx.voice_client.move_to(vc)
-                    else:
-                        await vc.connect()
-                    all_songs = os.listdir("media/youtube/")
-                    random.shuffle(all_songs)
-                    for song in all_songs:
-                        self.audio_queue.put("media/youtube/" + song)
+                await self.connect_to_user_voice(ctx)
+                songs = YoutubeMusicController.get_all_songs_randomly_shuffled()
+                for song in songs:
+                    self.audio_queue.put(song)
+                if not ctx.voice_client.is_playing():
                     await self.play_next(ctx)
             else:
-                path = download_single_video_mp3(arg)
-                vc = ctx.author.voice.channel
-                self.audio_queue.put(path)
-                if ctx.voice_client is not None:
-                    if ctx.voice_client.is_playing():
-                        return
-                else:
-                    await vc.connect()
-                await self.play_next(ctx)
+                try:
+                    self.audio_queue.put(YoutubeMusicController.download_single_song(arg))
+                    await self.connect_to_user_voice(ctx)
+                    if not ctx.voice_client.is_playing():
+                        await self.play_next(ctx)
+                except VideoTooLong:
+                    await ctx.send("TAKICH DLUGICH GRAC NIE BEDE")
+                    return
+                except VideoUnavailable:
+                    await ctx.send("NIE MA TAKIEGO KURWA WIDEO")
+                    return
+                except RegexMatchError:
+                    await ctx.send("JAK TO KURWA NAWET LINK NORMALNY NIE JEST JA PIERDOLE")
+                    return
 
         @self.command(name="clear")
         async def clear(ctx: discord.ext.commands.Context):
@@ -221,6 +221,7 @@ class FilipRBot(commands.Bot):
     async def on_voice_state_update(self, member, before, after):
         if member.id == self.user.id and before.channel and not after.channel:
             self.audio_queue.queue.clear()
+            YoutubeMusicController.delete_all_tmp_songs()
 
     async def quiz_game(self, channel, playing_members):
         config = self.commands_config['games']['quiz_game']
@@ -308,7 +309,18 @@ class FilipRBot(commands.Bot):
                                       f" - {value}```**", inline=False)
         return embed
 
-    def disconnect_voice(self, vc):
+    @staticmethod
+    async def connect_to_user_voice(ctx):
+        vc = ctx.author.voice.channel
+
+        if ctx.voice_client is not None:
+            if ctx.voice_client.is_playing():
+                return
+        else:
+            await vc.connect()
+
+    @staticmethod
+    def disconnect_voice(vc):
         if vc:
             asyncio.run_coroutine_threadsafe(vc.disconnect(), vc.loop)
 
@@ -316,6 +328,7 @@ class FilipRBot(commands.Bot):
         if self.audio_queue.empty():
             self.currently_playing_audio = ""
             await ctx.voice_client.disconnect()
+            YoutubeMusicController.delete_all_tmp_songs()
             return
         audio_path = self.audio_queue.get()
         self.currently_playing_audio = re.search(r'[^/]+(?=\.mp3)', audio_path).group()
