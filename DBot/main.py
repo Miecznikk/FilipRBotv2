@@ -138,10 +138,11 @@ class FilipRBot(commands.Bot):
             await ctx.send(random.choice(self.commands_config['games']['quiz_game']['end_game']).format(string))
             await quiz_channel.delete()
 
-        @self.command(name="play")
+        @self.command(name=self.commands_config['dj']['play']['command_name'])
         async def play(ctx: discord.ext.commands.Context, arg=None):
+            command_config = self.commands_config['dj']['play']
             if ctx.author.voice is None:
-                await ctx.send("GDZIE MAM KURWA TO GRAC")
+                await ctx.send(random.choice(command_config['not_on_channel']))
                 return
             if arg is None:
                 await self.connect_to_user_voice(ctx)
@@ -157,35 +158,38 @@ class FilipRBot(commands.Bot):
                     if not ctx.voice_client.is_playing():
                         await self.play_next(ctx)
                 except VideoTooLong:
-                    await ctx.send("TAKICH DLUGICH GRAC NIE BEDE")
+                    await ctx.send(random.choice(command_config['too_long_video']))
                     return
                 except VideoUnavailable:
-                    await ctx.send("NIE MA TAKIEGO KURWA WIDEO")
+                    await ctx.send(random.choice(command_config['unavailable_video']))
                     return
                 except RegexMatchError:
-                    await ctx.send("JAK TO KURWA NAWET LINK NORMALNY NIE JEST JA PIERDOLE")
+                    await ctx.send(random.choice(command_config['regex_match_error']))
                     return
 
-        @self.command(name="clear")
+        @self.command(name=self.commands_config['dj']['clear']['command_name'])
         async def clear(ctx: discord.ext.commands.Context):
+            command_config = self.commands_config['dj']['clear']
             self.audio_queue.queue.clear()
-            await ctx.send("KOLEJKA CZYSTA WARIACIE")
+            await ctx.send(random.choice(command_config['queue_empty']))
 
-        @self.command(name="skip")
+        @self.command(name=self.commands_config['dj']['skip']['command_name'])
         async def skip(ctx: discord.ext.commands.Context):
+            command_config = self.commands_config['dj']['skip']
             vc = self.guilds[0].voice_client
             if not vc:
-                await ctx.send("NIE GRAM MUZYKI DOWNIE")
+                await ctx.send(random.choice(command_config['not_playing']))
             else:
                 if vc.is_playing():
                     vc.stop()
 
-        @self.command(name="now_playing")
+        @self.command(name=self.commands_config['dj']['now_playing']['command_name'])
         async def now_playing(ctx: discord.ext.commands.Context):
+            command_config = self.commands_config['dj']['now_playing']
             if self.currently_playing_audio == "":
-                await ctx.send("KURWA NIC NIE GRAM MATOLE JEBANY")
+                await ctx.send(random.choice(command_config['not_playing']))
                 return
-            await ctx.send(self.currently_playing_audio)
+            await ctx.send(random.choice(command_config['playing']).format(self.currently_playing_audio))
 
     @tasks.loop(minutes=1)
     async def check_members_on_voice_channels(self):
