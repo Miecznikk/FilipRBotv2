@@ -12,6 +12,7 @@ db.sqlite3
 media
 tmp
 questions.txt
+messages.txt
 # Backup files #
 *.bak
 
