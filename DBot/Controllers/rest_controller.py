@@ -74,8 +74,8 @@ class RestController:
         else:
             raise ValueError("Failed to retrieve audio file, response code:" + str(response))
 
-    def get_default_message(self, user_name, message_content):
-        response = requests.get(f"{self.url}/api/messages/get/default_message/{user_name}/{message_content}",
+    def get_default_message(self, user_name, message_content, roles_names):
+        response = requests.get(f"{self.url}/api/messages/get/default_message/{user_name}/{message_content}/{roles_names}",
                                 headers={"Authorization": f"Token {self.get_authenticate_token()}"})
 
         if response.status_code == 200:

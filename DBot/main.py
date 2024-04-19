@@ -275,7 +275,8 @@ class FilipRBot(commands.Bot):
                 self.julia_call = False
                 await ctx.send("DOBRA JUZ JESTEM")
             else:
-                await ctx.send(self.restclient.get_default_message(ctx.author.name, ctx.message.content))
+                roles_string = ",".join([role.name for role in ctx.author.roles[1:]])
+                await ctx.send(self.restclient.get_default_message(ctx.author.name, ctx.message.content, roles_string))
 
     async def on_command_error(self, ctx, error):
         if isinstance(error, commands.CommandNotFound) and ctx.channel.name == CHANNEL_NAME:

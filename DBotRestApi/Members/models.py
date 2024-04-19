@@ -8,6 +8,9 @@ from rest_framework.authtoken.models import Token
 class Role(models.Model):
     name = models.CharField(max_length=50, null=False)
 
+    def __str__(self):
+        return self.name
+
 
 class GameRole(Role):
     game_assigned = models.CharField(max_length=50, null=False)

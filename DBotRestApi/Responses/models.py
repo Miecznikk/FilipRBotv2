@@ -1,6 +1,6 @@
 from django.db import models
 
-from Members.models import Member
+from Members.models import Member, Role
 
 
 class UserFormatableMessage(models.Model):
@@ -8,6 +8,13 @@ class UserFormatableMessage(models.Model):
 
     def format(self, user_nickname):
         return self.description.format(user_nickname)
+
+    def __str__(self):
+        return self.description
+
+
+class RoleDefaultMessage(UserFormatableMessage):
+    role = models.ForeignKey(Role, on_delete=models.CASCADE)
 
 
 class DefaultMessage(UserFormatableMessage):
@@ -44,4 +51,3 @@ class GlucoseRelatedMessage(UserFormatableMessage):
 
 class GreetingsRelatedMessage(UserFormatableMessage):
     pass
-
