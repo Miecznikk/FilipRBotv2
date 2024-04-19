@@ -51,6 +51,7 @@ class FilipRBot(commands.Bot):
         self.logger.addHandler(console_handler)
 
         self.restclient = RestController()
+        YoutubeMusicController.delete_all_tmp_songs()
         self.commands_config = load_commands_config()
         self.add_commands()
 
