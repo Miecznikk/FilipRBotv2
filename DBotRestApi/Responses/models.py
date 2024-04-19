@@ -51,3 +51,9 @@ class GlucoseRelatedMessage(UserFormatableMessage):
 
 class GreetingsRelatedMessage(UserFormatableMessage):
     pass
+
+class GoodbyeRelatedMessage(UserFormatableMessage):
+    pass
+
+class AmelkaRelatedMessage(UserFormatableMessage):
+    pass

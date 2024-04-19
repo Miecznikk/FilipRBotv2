@@ -4,7 +4,6 @@ from itertools import chain
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from Members.models import Role
 from .models import *
 
 
@@ -13,7 +12,8 @@ class GetDefaultMessageView(APIView):
         JuliaRelatedMessage: ['julia', 'julk', 'julci'],
         AudiRelatedMessage: ['audi', 'whiteshark', 'white shark', 'bialy rekin', 'biały rekin'],
         PbRelatedMessage: ['pb', 'polibud', 'studia'],
-        AlcoholRelatedMessage: ['piwo', 'piwko', 'wódka', 'wodka', 'wodke', 'wódke', 'alkohol'],
+        AlcoholRelatedMessage: ['piwo', 'piwko', 'piwka', 'piwa', 'wódka', 'wodka', 'wodke', 'wódke', 'wódki', 'wodki',
+                                'alkohol'],
         GrubassyRelatedMessage: ['grubass'],
         GlucoseRelatedMessage: ['cukier', 'cukr', 'dzik', 'dziczek', 'witamin'],
         GreetingsRelatedMessage: ['siema', 'hej', 'czesc', 'czolem']
