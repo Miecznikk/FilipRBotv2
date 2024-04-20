@@ -57,3 +57,6 @@ class GoodbyeRelatedMessage(UserFormatableMessage):
 
 class AmelkaRelatedMessage(UserFormatableMessage):
     pass
+
+class TroterRelatedMessage(UserFormatableMessage):
+    pass

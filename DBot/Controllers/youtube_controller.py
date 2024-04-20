@@ -76,7 +76,6 @@ class YoutubeMusicController:
 
     @staticmethod
     def delete_all_tmp_songs():
-        print(3)
         tmp_files = os.listdir("tmp/" + SAVE_PATH)
         for file in tmp_files:
             os.remove(os.path.join("tmp/" + SAVE_PATH, file))
