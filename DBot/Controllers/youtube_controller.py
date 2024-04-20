@@ -21,27 +21,27 @@ class VideoTooLong(Exception):
 
 class YoutubeMusicController:
     @classmethod
-    def download_single_song(cls, video_url):
+    def download_single_song(cls, video_url, tmp=""):
         try:
             yt = YouTube(video_url)
             if yt.length > 10 * 60:
-                raise VideoTooLong("Video too long")
+                raise VideoTooLong(f"Video {video_url} too long: {yt.length}")
             else:
                 safe_title = cls.get_song_safe_title(yt.title)
                 existing_tmp_songs = cls.get_tmp_existing_songs_titles()
                 if f"{safe_title}.mp3" in existing_tmp_songs:
-                    return f"tmp/{SAVE_PATH}{safe_title}.mp3"
+                    return f"{tmp}{SAVE_PATH}{safe_title}.mp3"
                 existing_songs = cls.get_existing_songs_titles()
                 if f"{safe_title}.mp3" in existing_songs:
                     return f"{SAVE_PATH}{safe_title}.mp3"
                 audio_stream = yt.streams.filter(only_audio=True).first()
-                audio_stream.download(output_path="tmp/" + SAVE_PATH, filename=f'{safe_title}.mp4')
-                audio_clip = AudioFileClip("tmp/" + SAVE_PATH + f'{safe_title}.mp4')
-                audio_clip.write_audiofile("tmp/" + SAVE_PATH + f'{safe_title}.mp3')
+                audio_stream.download(output_path=tmp + SAVE_PATH, filename=f'{safe_title}.mp4')
+                audio_clip = AudioFileClip(tmp + SAVE_PATH + f'{safe_title}.mp4')
+                audio_clip.write_audiofile(tmp + SAVE_PATH + f'{safe_title}.mp3')
 
                 audio_clip.close()
-                os.remove("tmp/" + SAVE_PATH + f'{safe_title}.mp4')
-                return "tmp/" + SAVE_PATH + f'{safe_title}.mp3'
+                os.remove(tmp + SAVE_PATH + f'{safe_title}.mp4')
+                return tmp + SAVE_PATH + f'{safe_title}.mp3'
         except VideoUnavailable as e:
             raise e
         except RegexMatchError as e:
@@ -52,6 +52,7 @@ class YoutubeMusicController:
         all_songs = os.listdir(SAVE_PATH)
         random.shuffle(all_songs)
         return [SAVE_PATH + song for song in all_songs]
+
     @staticmethod
     def delete_all_songs_from_save_path():
         for file in os.listdir(SAVE_PATH):
@@ -80,6 +81,27 @@ class YoutubeMusicController:
         for file in tmp_files:
             os.remove(os.path.join("tmp/" + SAVE_PATH, file))
 
+    @classmethod
+    def download_all_songs_from_playlist(cls):
+        video_urls = cls.get_all_videos_urls_in_playlist(PLAYLIST_URL)
+        queue = Queue()
+        num_threads = min(8, len(video_urls))
+        threads = []
+
+        for _ in range(num_threads):
+            t = threading.Thread(target=worker, args=[queue])
+            t.start()
+            threads.append(t)
+
+        for video_url in video_urls:
+            queue.put(video_url)
+
+        for _ in range(num_threads):
+            queue.put(None)
+
+        for t in threads:
+            t.join()
+
 
 def worker(queue):
     while True:
@@ -91,30 +113,3 @@ def worker(queue):
         except pytube.exceptions.AgeRestrictedError:
             print('AgeRestrictedError')
         queue.task_done()
-
-
-def main():
-    global SAVE_PATH
-    SAVE_PATH = "../media/youtube/"
-    video_urls = YoutubeMusicController.get_all_videos_urls_in_playlist(PLAYLIST_URL)
-    queue = Queue()
-    num_threads = min(8, len(video_urls))
-    threads = []
-
-    for _ in range(num_threads):
-        t = threading.Thread(target=worker, args=[queue])
-        t.start()
-        threads.append(t)
-
-    for video_url in video_urls:
-        queue.put(video_url)
-
-    for _ in range(num_threads):
-        queue.put(None)
-
-    for t in threads:
-        t.join()
-
-
-if __name__ == "__main__":
-    print(YoutubeMusicController.download_single_song("https://www.youtube.com/watch?v=n3cK6J4kcQw"))

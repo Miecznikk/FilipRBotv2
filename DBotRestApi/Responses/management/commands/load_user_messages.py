@@ -5,7 +5,6 @@ from django.core.management.base import BaseCommand
 from DBotRestApi import settings
 from Responses.models import DefaultUserRelatedMessage
 from Members.models import Member
-from django.apps import apps
 
 
 class Command(BaseCommand):

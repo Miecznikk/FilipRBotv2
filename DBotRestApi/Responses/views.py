@@ -16,7 +16,10 @@ class GetDefaultMessageView(APIView):
                                 'alkohol'],
         GrubassyRelatedMessage: ['grubass'],
         GlucoseRelatedMessage: ['cukier', 'cukr', 'dzik', 'dziczek', 'witamin'],
-        GreetingsRelatedMessage: ['siema', 'hej', 'czesc', 'czolem']
+        GreetingsRelatedMessage: ['siema', 'hej', 'czesc', 'czolem', 'dzien dobry', 'dzień dobry'],
+        GoodbyeRelatedMessage: ['nara', 'papa', 'dobranoc', 'do widzenia'],
+        AmelkaRelatedMessage: ['amelk', 'amelc', 'ameli'],
+        TroterRelatedMessage: ['troter']
     }
 
     permission_classes = [IsAuthenticated]

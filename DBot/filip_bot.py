@@ -57,6 +57,7 @@ class FilipRBot(commands.Bot):
 
     async def on_ready(self):
         self.logger.info(f"Logged in as {self.user}")
+        self.download_audio_from_youtube_playlist.start()
         self.check_members_on_voice_channels.start()
         self.decide_and_join_channel.start(int(os.getenv("JOIN_RATE")))
 
@@ -149,7 +150,7 @@ class FilipRBot(commands.Bot):
                     await self.play_next(ctx)
             else:
                 try:
-                    self.audio_queue.put(YoutubeMusicController.download_single_song(arg))
+                    self.audio_queue.put(YoutubeMusicController.download_single_song(arg, "tmp/"))
                     await self.connect_to_user_voice(ctx)
                     if not ctx.voice_client.is_playing():
                         await self.play_next(ctx)
@@ -216,6 +217,11 @@ class FilipRBot(commands.Bot):
             audio_source = discord.FFmpegPCMAudio(audio_path)
             vc = await random_channel.connect()
             vc.play(audio_source, after=lambda e: self.disconnect_voice(vc))
+
+    @tasks.loop(hours=6)
+    async def download_audio_from_youtube_playlist(self):
+        loop = asyncio.get_event_loop()
+        await loop.run_in_executor(None, YoutubeMusicController.download_all_songs_from_playlist)
 
     @commands.Cog.listener()
     async def on_voice_state_update(self, member, before, after):

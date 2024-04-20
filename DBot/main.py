@@ -1,6 +1,6 @@
 import os
 from discord import PrivilegedIntentsRequired
-from FilipRBot import FilipRBot
+from filip_bot import FilipRBot
 import dotenv
 
 dotenv.load_dotenv()
