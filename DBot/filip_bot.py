@@ -112,7 +112,7 @@ class FilipRBot(commands.Bot):
         async def quiz(ctx: discord.ext.commands.Context):
             view = QuizView()
             message = await ctx.send(self.commands_config['games']['quiz_game']['invite'], view=view)
-            await asyncio.sleep(5)
+            await asyncio.sleep(15)
             view.disable_button()
             await message.edit(view=view)
             if len(view.playing_users) < 2:
@@ -135,6 +135,9 @@ class FilipRBot(commands.Bot):
             await ctx.send(random.choice(self.commands_config['games']['quiz_game']['end_game']).format(string))
             await quiz_channel.delete()
 
+        @check_in_call(self)
+        @check_in_game(self)
+        @channel_check(CHANNEL_NAME)
         @self.command(name=self.commands_config['dj']['play']['command_name'])
         async def play(ctx: discord.ext.commands.Context, arg=None):
             command_config = self.commands_config['dj']['play']
@@ -164,12 +167,18 @@ class FilipRBot(commands.Bot):
                     await ctx.send(random.choice(command_config['regex_match_error']))
                     return
 
+        @check_in_call(self)
+        @check_in_game(self)
+        @channel_check(CHANNEL_NAME)
         @self.command(name=self.commands_config['dj']['clear']['command_name'])
         async def clear(ctx: discord.ext.commands.Context):
             command_config = self.commands_config['dj']['clear']
             self.audio_queue.queue.clear()
             await ctx.send(random.choice(command_config['queue_empty']))
 
+        @check_in_call(self)
+        @check_in_game(self)
+        @channel_check(CHANNEL_NAME)
         @self.command(name=self.commands_config['dj']['skip']['command_name'])
         async def skip(ctx: discord.ext.commands.Context):
             command_config = self.commands_config['dj']['skip']
@@ -180,6 +189,9 @@ class FilipRBot(commands.Bot):
                 if vc.is_playing():
                     vc.stop()
 
+        @check_in_call(self)
+        @check_in_game(self)
+        @channel_check(CHANNEL_NAME)
         @self.command(name=self.commands_config['dj']['now_playing']['command_name'])
         async def now_playing(ctx: discord.ext.commands.Context):
             command_config = self.commands_config['dj']['now_playing']
@@ -188,6 +200,18 @@ class FilipRBot(commands.Bot):
                 return
             await ctx.send(random.choice(command_config['playing']).format(self.currently_playing_audio))
 
+        @check_in_call(self)
+        @check_in_game(self)
+        @channel_check(CHANNEL_NAME)
+        @self.command(name=self.commands_config['help']['command_name'])
+        async def show_help(ctx: discord.ext.commands.Context):
+            command_config = self.commands_config['help']
+            commands = command_config['commands']
+            embed = discord.Embed(title = command_config['embed_title'], color=0x7289DA)
+            for key, value in commands.items():
+                embed.add_field(name=value['name'], value=value['description'], inline=False)
+
+            await ctx.send(embed=embed)
     @tasks.loop(minutes=1)
     async def check_members_on_voice_channels(self):
         self.logger.info("Checking channels for active users")
@@ -235,7 +259,7 @@ class FilipRBot(commands.Bot):
                                     color=discord.Color.random(),
                                     description=config['rules']['description'])
         await channel.send(embed=rules_embed)
-        questions = [Question(**question) for question in self.restclient.get_questions(2)]
+        questions = [Question(**question) for question in self.restclient.get_questions(10)]
         await asyncio.sleep(15)
         members_points = {member: 0 for member in playing_members}
         question_views = [QuestionView(members_points, {member: False for member in playing_members},

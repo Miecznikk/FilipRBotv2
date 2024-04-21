@@ -4,7 +4,7 @@ from QuizGame.models import Question
 
 class Command(BaseCommand):
     def handle(self, *args, **options):
-        current_category = "Informatyka i internet"
+        current_category = ""
         with open("QuizGame/management/commands/questions.txt", 'r') as file:
             lines = [line.strip('\n') for line in file.readlines()]
         for i in range(0, len(lines), 3):
