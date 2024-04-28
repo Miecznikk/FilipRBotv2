@@ -65,7 +65,7 @@ class FilipRBot(commands.Bot):
         @check_in_call(self)
         @check_in_game(self)
         @channel_check(CHANNEL_NAME)
-        @self.command(name=self.commands_config['call_for_game']['command_name'])
+        @self.command(name=self.commands_config['call_for_game']['command_name'], aliases=self.commands_config['call_for_game']['command_aliases'])
         async def call_for_game(ctx, *args):
             if len(args) < 2:
                 return
@@ -138,7 +138,7 @@ class FilipRBot(commands.Bot):
         @check_in_call(self)
         @check_in_game(self)
         @channel_check(CHANNEL_NAME)
-        @self.command(name=self.commands_config['dj']['play']['command_name'])
+        @self.command(name=self.commands_config['dj']['play']['command_name'], aliases=self.commands_config['dj']['play']['command_aliases'])
         async def play(ctx: discord.ext.commands.Context, arg=None):
             command_config = self.commands_config['dj']['play']
             if ctx.author.voice is None:
@@ -212,6 +212,18 @@ class FilipRBot(commands.Bot):
                 embed.add_field(name=value['name'], value=value['description'], inline=False)
 
             await ctx.send(embed=embed)
+
+        @channel_check(CHANNEL_NAME)
+        @self.command(name=self.commands_config['dj']['disconnect']['command_name'], aliases=self.commands_config['dj']['disconnect']['command_aliases'])
+        async def disconnect(ctx: discord.ext.commands.Context):
+            command_config = self.commands_config['dj']['disconnect']
+            vc = self.guilds[0].voice_client
+            if not vc:
+                await ctx.send(random.choice(command_config['not_playing']))
+            else:
+                self.audio_queue.queue.clear()
+                vc.stop()
+
     @tasks.loop(minutes=1)
     async def check_members_on_voice_channels(self):
         self.logger.info("Checking channels for active users")
