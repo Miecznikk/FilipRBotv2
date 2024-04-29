@@ -15,6 +15,7 @@ questions.txt
 messages.txt
 # Backup files #
 *.bak
+*.zip
 
 # If you are using PyCharm #
 # User-specific stuff
