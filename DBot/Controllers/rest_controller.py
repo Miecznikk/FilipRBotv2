@@ -9,20 +9,22 @@ class RestController:
         self.username = os.getenv("API_USERNAME")
         self.password = os.getenv("API_PASSWORD")
         self.url = os.getenv("API_URL")
+        self.token = os.getenv("API_TOKEN")
 
     def get_authenticate_token(self):
-        credentials = {
-            "username": self.username,
-            "password": self.password
-        }
-
-        response = requests.post(self.url + "authenticate/", data=credentials)
-        if response.status_code == 200:
-            try:
-                return response.json()['token']
-            except KeyError:
-                print("Error reading token")
-                raise
+        # credentials = {
+        #     "username": self.username,
+        #     "password": self.password
+        # }
+        #
+        # response = requests.post(self.url + "authenticate/", data=credentials)
+        # if response.status_code == 200:
+        #     try:
+        #         return response.json()['token']
+        #     except KeyError:
+        #         print("Error reading token")
+        #         raise
+        return self.token #TODO temporary solution because free api hosting takes one second to get token
 
     def get_discord_members(self):
         response = requests.get(self.url + "api/members/", headers={
